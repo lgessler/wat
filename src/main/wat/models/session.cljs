@@ -15,22 +15,24 @@
 
 (def session-ident [:component/id :session])
 
+(def session-initial-state
+  {:session/valid?           false
+   :user/admin?              false
+   :user/email               ""
+   :user/id                  nil
+   :session/server-error-msg nil
+   :ui/browser-state         {}})
+
 ;; query-only defsc for normalization
 (defsc Session
-  [_ {:keys [:session/valid? :user/email :user/id :session/server-error-msg :user/admin?]}]
-  {:query         [:session/valid? :user/admin? :session/server-error-msg :user/email :user/id :ui/loading?
-                   :ui/browser-state]
+  [_ props]
+  {:query         (fn [] (vec (keys session-initial-state)))
    :ident         (fn [] session-ident)
    :pre-merge     (fn [{:keys [data-tree]}]
                     (merge
-                      {:session/valid?           false
-                       :user/admin?              false
-                       :user/email               ""
-                       :user/id                  nil
-                       :session/server-error-msg nil
-                       :ui/browser-state         {}}
+                      session-initial-state
                       data-tree))
-   :initial-state {:session/valid? false :user/admin? false :user/email "" :user/id nil :session/server-error-msg nil}})
+   :initial-state (fn [_] session-initial-state)})
 
 ;; For local state that doesn't need to go to the server
 (defn session-get [session-map k]
