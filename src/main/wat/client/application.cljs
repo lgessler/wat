@@ -89,26 +89,26 @@
     resp))
 
 (defonce SPA
-         (->
-           (app/fulcro-app
-             {:remote-error?     remote-error?
-              :remotes           {:remote  (fws/fulcro-websocket-remote {:csrf-token   (get-token)
-                                                                         :push-handler (debounce push-handler 1000)})
-                                  :session (api-remote)}
-              :optimized-render! kfr2/render!
-              ;; Modify the default result action so that it looks for :on-result, :on-ok and :on-error
-              ;; see, for an example, change_password.cljs
-              :default-result-action!
-              (fn [{:keys [transacted-ast result] ::txp/keys [options] :as env}]
-                (js/console.log (pr-str options))
-                (js/console.log (pr-str (keys env)))
-                (m/default-result-action! env)
-                (when-let [on-result (:on-result options)]
-                  (on-result (get-in result [:body (:dispatch-key transacted-ast)])))
-                (if (remote-error? result)
-                  (when-let [on-error (:on-error options)]
-                    (on-error (get-in result [:body (:dispatch-key transacted-ast)])))
-                  (when-let [on-ok (:on-ok options)]
-                    (on-ok (get-in result [:body (:dispatch-key transacted-ast)])))))})
-           with-react18
-           stx/with-synchronous-transactions))
+  (->
+    (app/fulcro-app
+      {:remote-error?     remote-error?
+       :remotes           {:remote  (fws/fulcro-websocket-remote {:csrf-token   (get-token)
+                                                                  :push-handler (debounce push-handler 1000)})
+                           :session (api-remote)}
+       :optimized-render! kfr2/render!
+       ;; Modify the default result action so that it looks for :on-result, :on-ok and :on-error
+       ;; see, for an example, change_password.cljs
+       :default-result-action!
+       (fn [{:keys [transacted-ast result] ::txp/keys [options] :as env}]
+         (js/console.log (pr-str options))
+         (js/console.log (pr-str (keys env)))
+         (m/default-result-action! env)
+         (when-let [on-result (:on-result options)]
+           (on-result (get-in result [:body (:dispatch-key transacted-ast)])))
+         (if (remote-error? result)
+           (when-let [on-error (:on-error options)]
+             (on-error (get-in result [:body (:dispatch-key transacted-ast)])))
+           (when-let [on-ok (:on-ok options)]
+             (on-ok (get-in result [:body (:dispatch-key transacted-ast)])))))})
+    with-react18
+    stx/with-synchronous-transactions))
