@@ -9,20 +9,87 @@
             #?(:clj [wat.xtdb.easy :as gxe])
             #?(:clj [wat.models.common :as mc :refer [server-error server-message]])))
 
-(def document-keys [:document/name :document/project])
+(def document-keys
+  [:document/name
+   :document/project
+   :document/target-sentences
+   :document/transl-sentences
+   :document/source-glosses
+   :document/transl-glosses])
+
+(defn valid-sentences-and-glosses
+  "Checks whether the textual info associated is valid. Conceptually, note that we are
+  assuming that :document/source-sentences and :document/target-sentences contain
+  tokenized target and translation text. Additionally, each item in
+  :document/target-glosses and :document/transl-glosses represents a sentence- and
+  word-aligned set of additional information for each token, e.g. interlinear glosses."
+  [{:document/keys [target-sentences transl-sentences target-glosses transl-glosses]}]
+  (let [num-tar-sents (count target-sentences)
+        num-tra-sents (count transl-sentences)
+        num-tar-gloss-sents (map count target-glosses)
+        num-tra-gloss-sents (map count transl-glosses)
+        tar-token-counts (map count target-sentences)
+        tra-token-counts (map count target-sentences)
+        tar-gloss-item-counts (map #(map count %) target-glosses)
+        tra-gloss-item-counts (map #(map count %) transl-glosses)
+        ]
+    (and
+      ;; Must be at least one sentence
+      (> num-tar-sents 0)
+      (> num-tra-sents 0)
+
+      ;; Target and translation sentence counts must match
+      (= num-tar-sents num-tra-sents)
+
+      ;; No sentence may be empty
+      (every? #(> (count %) 0) target-sentences)
+      (every? #(> (count %) 0) transl-sentences)
+
+      ;; All sentences must be strings
+      (every? (fn [sentence] (every? #(string? %) sentence)) target-sentences)
+      (every? (fn [sentence] (every? #(string? %) sentence)) transl-sentences)
+
+      ;; All glosses must be strings
+      (every? (fn [gloss-set]
+                (every? (fn [sentence]
+                          (every? #(string? %) sentence)) gloss-set))
+              target-glosses)
+      (every? (fn [gloss-set]
+                (every? (fn [sentence]
+                          (every? #(string? %) sentence)) gloss-set)) transl-glosses)
+
+      ;; Number of sentences in the glosses must match number of sentences in the text
+      (every? #(= % num-tar-sents) num-tar-gloss-sents)
+      (every? #(= % num-tra-sents) num-tra-gloss-sents)
+
+      ;; For each gloss set, number of tokens in each sentence must match number of tokens
+      ;; in corresponding sentence
+      (every? (fn [gloss-set]
+                (let [counts (partition 2 (interleave gloss-set tar-token-counts))]
+                  (every? (fn [[c1 c2]] (= c1 c2)) counts)))
+              tar-gloss-item-counts)
+      (every? (fn [gloss-set]
+                (let [counts (partition 2 (interleave gloss-set tra-token-counts))]
+                  (every? (fn [[c1 c2]] (= c1 c2)) counts)))
+              tra-gloss-item-counts))))
 
 (defn valid-name [name] (and (string? name) (<= 1 (count name) 80)))
-(defn- field-valid [field v]
+(defn- field-valid [record field v]
   (case field
-    :document/name (valid-name v)))
+    :document/name (valid-name v)
+    #{:document/target-sentences
+      :document/transl-sentences
+      :document/target-glosses
+      :document/transl-glosses}
+    (valid-sentences-and-glosses record)))
 
 (defn document-valid [form field]
   (let [v (get form field)]
-    (field-valid field v)))
+    (field-valid form field v)))
 
 (defn record-valid? [record]
   (every? (fn [[k v]]
-            (field-valid k v)) (log/spy record)))
+            (field-valid record k v)) (log/spy record)))
 
 (def validator (fs/make-validator document-valid))
 
@@ -30,7 +97,8 @@
 #?(:clj
    (pc/defresolver get-document [{:keys [node]} {:document/keys [id]}]
      {::pc/input     #{:document/id}
-      ::pc/output    [:document/id :document/name]
+      ::pc/output    [:document/id :document/name :document/source-sentences :document/target-sentences
+                      :document/source-glosses :document/target-glosses]
       ::pc/transform (ma/readable-required :document/id)}
      (doc/get node id)))
 
@@ -42,10 +110,20 @@
                             (mc/apply-delta delta)
                             (select-keys [:document/name])
                             (assoc :document/project parent-id))]
-       (let [{:keys [id success]} (doc/create node new-document)]
-         (if-not success
-           (server-error (str "Failed to create document, please refresh and try again"))
-           {:tempids {temp-id id}})))))
+       (cond
+         (not (every? #{:document/target-sentences :document/transl-sentences
+                        :document/target-glosses :document/transl-glosses
+                        :document/name} new-document))
+         (server-error (str "Document is missing keys."))
+
+         (not (mc/validate-delta record-valid? delta))
+         (server-error (str "Not valid."))
+
+         :else
+         (let [{:keys [id success]} (doc/create node new-document)]
+           (if-not success
+             (server-error (str "Failed to create document, please refresh and try again"))
+             {:tempids {temp-id id}}))))))
 
 #?(:clj
    (pc/defmutation save-document [{:keys [node]} {delta :delta [_ id] :ident :as params}]

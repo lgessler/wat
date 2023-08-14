@@ -6,7 +6,11 @@
 
 (def attr-keys [:document/id
                 :document/name
-                :document/project])
+                :document/project
+                :document/target-sentences
+                :document/transl-sentences
+                :document/target-glosses
+                :document/transl-glosses])
 
 (defn xt->pathom [doc]
   (when doc
