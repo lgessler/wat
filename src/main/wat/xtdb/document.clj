@@ -7,10 +7,8 @@
 (def attr-keys [:document/id
                 :document/name
                 :document/project
-                :document/target-sentences
-                :document/transl-sentences
-                :document/target-glosses
-                :document/transl-glosses])
+                :document/combined-target-sentences
+                :document/combined-transl-sentences])
 
 (defn xt->pathom [doc]
   (when doc

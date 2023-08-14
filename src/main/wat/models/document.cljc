@@ -12,10 +12,27 @@
 (def document-keys
   [:document/name
    :document/project
-   :document/target-sentences
-   :document/transl-sentences
-   :document/source-glosses
-   :document/transl-glosses])
+   :document/combined-target-sentences
+   :document/combined-transl-sentences])
+
+(defn combine-glosses [{:document/keys [target-sentences transl-sentences target-glosses transl-glosses] :as doc}]
+  (let [combine-fn (fn [acc x]
+                     (mapv (comp
+                             vec
+                             (partial map vec)
+                             (partial map flatten)
+                             (partial partition 2)
+                             interleave)
+                           acc x))
+        combined-target-sentences (reduce combine-fn target-sentences target-glosses)
+        combined-transl-sentences (reduce combine-fn transl-sentences transl-glosses)]
+    (-> doc
+        (dissoc :document/target-sentences)
+        (dissoc :document/transl-sentences)
+        (dissoc :document/target-glosses)
+        (dissoc :document/transl-glosses)
+        (assoc :document/combined-target-sentences combined-target-sentences)
+        (assoc :document/combined-transl-sentences combined-transl-sentences))))
 
 (defn valid-sentences-and-glosses
   "Checks whether the textual info associated is valid. Conceptually, note that we are
@@ -97,8 +114,8 @@
 #?(:clj
    (pc/defresolver get-document [{:keys [node]} {:document/keys [id]}]
      {::pc/input     #{:document/id}
-      ::pc/output    [:document/id :document/name :document/source-sentences :document/target-sentences
-                      :document/source-glosses :document/target-glosses]
+      ::pc/output    [:document/id :document/name
+                      :document/combined-source-sentences :document/combined-target-sentences]
       ::pc/transform (ma/readable-required :document/id)}
      (doc/get node id)))
 
@@ -120,7 +137,8 @@
          (server-error (str "Not valid."))
 
          :else
-         (let [{:keys [id success]} (doc/create node new-document)]
+         (let [combined-new-document (combine-glosses new-document)
+               {:keys [id success]} (doc/create node combined-new-document)]
            (if-not success
              (server-error (str "Failed to create document, please refresh and try again"))
              {:tempids {temp-id id}}))))))
