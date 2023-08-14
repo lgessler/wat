@@ -115,7 +115,7 @@
    (pc/defresolver get-document [{:keys [node]} {:document/keys [id]}]
      {::pc/input     #{:document/id}
       ::pc/output    [:document/id :document/name
-                      :document/combined-source-sentences :document/combined-target-sentences]
+                      :document/combined-target-sentences :document/combined-transl-sentences]
       ::pc/transform (ma/readable-required :document/id)}
      (doc/get node id)))
 
