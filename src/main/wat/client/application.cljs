@@ -8,6 +8,7 @@
     [com.fulcrologic.fulcro.rendering.keyframe-render :as kfr]
     [com.fulcrologic.fulcro.rendering.keyframe-render2 :as kfr2]
     [com.fulcrologic.fulcro.rendering.ident-optimized-render :as ier]
+    [com.fulcrologic.fulcro.react.version18 :refer [with-react18]]
     [com.fulcrologic.fulcro.mutations :as m]
     [taoensso.timbre :as log]
     [wat.algos.subs :refer [push-handler]])
@@ -88,7 +89,7 @@
     resp))
 
 (defonce SPA
-         (stx/with-synchronous-transactions
+         (->
            (app/fulcro-app
              {:remote-error?     remote-error?
               :remotes           {:remote  (fws/fulcro-websocket-remote {:csrf-token   (get-token)
@@ -108,4 +109,6 @@
                   (when-let [on-error (:on-error options)]
                     (on-error (get-in result [:body (:dispatch-key transacted-ast)])))
                   (when-let [on-ok (:on-ok options)]
-                    (on-ok (get-in result [:body (:dispatch-key transacted-ast)])))))})))
+                    (on-ok (get-in result [:body (:dispatch-key transacted-ast)])))))})
+           with-react18
+           stx/with-synchronous-transactions))
