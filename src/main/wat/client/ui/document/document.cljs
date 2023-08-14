@@ -37,10 +37,10 @@
                                        :update-query         #(df/elide-query-nodes % #{sn/session-ident})}))))))}
 
   (mui/container {:maxWidth "xl"}
-                 (mui/page-title name)
-                 (mui/arrow-breadcrumbs {}
-                   (mui/link {:color "inherit" :href (r/route-for :projects) :key "projects"} "Projects")
-                   (mui/link {:color "inherit" :href (r/route-for :project {:id (:project/id project)}) :key "project"} (:project/name project))
-                   (mui/link {:color "textPrimary" :underline "none" :key "document"} name))
-                 (mui/paper {}
-                   "todo")))
+    (mui/page-title name)
+    (mui/arrow-breadcrumbs {}
+      (mui/link {:color "inherit" :href (r/route-for :projects) :key "projects"} "Projects")
+      (mui/link {:color "inherit" :href (r/route-for :project {:id (:project/id project)}) :key "project"} (:project/name project))
+      (mui/link {:color "textPrimary" :underline "none" :key "document"} name))
+    (mui/paper {}
+      "todo")))
