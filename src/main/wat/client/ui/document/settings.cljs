@@ -34,8 +34,8 @@
                              (merge {:ui/busy? false}
                                     data-tree))
    ::forms/validator       doc/validator
-   ::forms/save-mutation   'glam.models.document/save-document
-   ::forms/delete-mutation 'glam.models.document/delete-document
+   ::forms/save-mutation   'wat.models.document/save-document
+   ::forms/delete-mutation 'wat.models.document/delete-document
    ::forms/delete-message  "Document deleted"
    :form-fields            #{:document/name}}
   (let [dirty (fs/dirty? props)]

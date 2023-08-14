@@ -19,11 +19,38 @@
             [com.fulcrologic.fulcro.algorithms.tempid :as tempid]))
 
 ;; add doc dialog --------------------------------------------------------------------------------
-(defsc AddDocument [this {:document/keys [id] :ui/keys [busy?] :as props}]
+(defn input-textarea [component field-key label busy?]
+  (forms/text-input-with-label component :document/name label ""
+    {:fullWidth  true
+     :disabled   busy?
+     :last-input true
+     :multiline  true
+     :onBlur     (fn [e]
+                   (when (not= (.-value (.-target e)) "")
+                     (forms/complete-field component field-key)
+                     (forms/complete-field component :document/target-glosses)
+                     (forms/complete-field component :document/transl-glosses)))
+     :onChange   (fn [e]
+                   (let [v (.-value (.-target e))]
+                     (m/set-value! component field-key v)
+                     (forms/complete-field component field-key)
+                     (forms/complete-field component :document/target-glosses)
+                     (forms/complete-field component :document/transl-glosses)))
+     :maxRows    10
+     :minRows    5
+     :value      (field-key (c/props component))}))
+
+(defsc AddDocument [this {:document/keys [id target-sentences transl-sentences target-glosses transl-glosses]
+                          :ui/keys       [busy?] :as props}]
   {:ident                   :document/id
-   :query                   [fs/form-config-join :document/id :document/name :ui/busy?]
-   :initial-state           {:ui/busy? false :document/name ""}
-   :form-fields             #{:document/name}
+   :query                   [fs/form-config-join :document/id :document/name :ui/busy?
+                             :document/target-sentences :document/transl-sentences
+                             :document/target-glosses :document/transl-glosses]
+   :initial-state           {:ui/busy?                  false :document/name ""
+                             :document/target-sentences "" :document/transl-sentences ""
+                             :document/target-glosses   "" :document/transl-glosses ""}
+   :form-fields             #{:document/name :document/target-sentences :document/transl-sentences
+                              :document/target-glosses :document/transl-glosses}
    ::forms/validator        doc/validator
    ::forms/create-mutation  'wat.models.document/create-document
    ::forms/create-message   "Document added"
@@ -40,7 +67,12 @@
             {:fullWidth  true
              :disabled   busy?
              :autoFocus  true
-             :last-input true}))
+             :last-input true})
+
+          (input-textarea this :document/target-sentences "Target Sentences" busy?)
+          (input-textarea this :document/target-glosses "Target Glosses" busy?)
+          (input-textarea this :document/transl-sentences "Translation Sentences" busy?)
+          (input-textarea this :document/transl-glosses "Translation Glosses" busy?))
         (mui/horizontal-grid
           (mui/button
             {:type      "submit"
@@ -98,9 +130,11 @@
 
 
   (mui/container {:maxWidth "md"}
-    (mui/dialog {:open    modal-open?
-                 :onClose (fn []
-                            (uism/trigger! this ::add-document :event/cancel))}
+    (mui/dialog {:open      modal-open?
+                 :fullWidth true
+                 :maxWidth  "md"
+                 :onClose   (fn []
+                              (uism/trigger! this ::add-document :event/cancel))}
       (mui/dialog-title {} "Add Document Layer")
       (mui/dialog-content {}
         (when add-document

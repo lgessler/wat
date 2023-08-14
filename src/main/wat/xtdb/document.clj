@@ -35,5 +35,5 @@
   (gxe/merge node eid (select-keys m [:document/name])))
 
 (gxe/deftx delete [node eid]
-  (gxe/delete* eid))
+  [(gxe/delete* eid)])
 

@@ -1,5 +1,6 @@
 (ns wat.models.document
   (:require [clojure.set :refer [rename-keys]]
+            [clojure.string :as cstr]
             [com.wsscode.pathom.connect :as pc]
             [com.fulcrologic.fulcro.algorithms.form-state :as fs]
             [taoensso.timbre :as log]
@@ -15,6 +16,22 @@
    :document/combined-target-sentences
    :document/combined-transl-sentences])
 
+(defn postprocess-sentences [v]
+  (if (= "" (cstr/trim v))
+    []
+    (->> v
+         cstr/trim
+         cstr/split-lines
+         (mapv #(cstr/split % #"\s+")))))
+
+(defn postprocess-glosses [v]
+  (if (= "" (cstr/trim v))
+    []
+    (mapv postprocess-sentences
+          (-> v
+              cstr/trim
+              (cstr/split #"\n\n|\r\n\r\n")))))
+
 (defn combine-glosses [{:document/keys [target-sentences transl-sentences target-glosses transl-glosses] :as doc}]
   (let [combine-fn (fn [acc x]
                      (mapv (comp
@@ -24,6 +41,10 @@
                              (partial partition 2)
                              interleave)
                            acc x))
+        target-sentences (postprocess-sentences target-sentences)
+        transl-sentences (postprocess-sentences transl-sentences)
+        target-glosses (postprocess-glosses target-glosses)
+        transl-glosses (postprocess-glosses transl-glosses)
         combined-target-sentences (reduce combine-fn target-sentences target-glosses)
         combined-transl-sentences (reduce combine-fn transl-sentences transl-glosses)]
     (-> doc
@@ -41,15 +62,19 @@
   :document/target-glosses and :document/transl-glosses represents a sentence- and
   word-aligned set of additional information for each token, e.g. interlinear glosses."
   [{:document/keys [target-sentences transl-sentences target-glosses transl-glosses]}]
-  (let [num-tar-sents (count target-sentences)
+  (let [target-sentences (postprocess-sentences target-sentences)
+        transl-sentences (postprocess-sentences transl-sentences)
+        target-glosses (postprocess-glosses target-glosses)
+        transl-glosses (postprocess-glosses transl-glosses)
+        num-tar-sents (count target-sentences)
         num-tra-sents (count transl-sentences)
         num-tar-gloss-sents (map count target-glosses)
         num-tra-gloss-sents (map count transl-glosses)
         tar-token-counts (map count target-sentences)
-        tra-token-counts (map count target-sentences)
+        tra-token-counts (map count transl-sentences)
         tar-gloss-item-counts (map #(map count %) target-glosses)
-        tra-gloss-item-counts (map #(map count %) transl-glosses)
-        ]
+        tra-gloss-item-counts (map #(map count %) transl-glosses)]
+
     (and
       ;; Must be at least one sentence
       (> num-tar-sents 0)
@@ -59,7 +84,7 @@
       (= num-tar-sents num-tra-sents)
 
       ;; No sentence may be empty
-      (every? #(> (count %) 0) target-sentences)
+      (log/spy (every? #(> (count %) 0) target-sentences))
       (every? #(> (count %) 0) transl-sentences)
 
       ;; All sentences must be strings
@@ -94,11 +119,10 @@
 (defn- field-valid [record field v]
   (case field
     :document/name (valid-name v)
-    #{:document/target-sentences
-      :document/transl-sentences
-      :document/target-glosses
-      :document/transl-glosses}
-    (valid-sentences-and-glosses record)))
+    :document/target-sentences (valid-sentences-and-glosses record)
+    :document/transl-sentences (valid-sentences-and-glosses record)
+    :document/target-glosses (valid-sentences-and-glosses record)
+    :document/transl-glosses (valid-sentences-and-glosses record)))
 
 (defn document-valid [form field]
   (let [v (get form field)]
@@ -125,12 +149,12 @@
       ::pc/output    [:server/error? :server/message]}
      (let [new-document (-> {}
                             (mc/apply-delta delta)
-                            (select-keys [:document/name])
+                            (select-keys [:document/name :document/target-sentences :document/transl-sentences
+                                          :document/target-glosses :document/transl-glosses])
                             (assoc :document/project parent-id))]
        (cond
-         (not (every? #{:document/target-sentences :document/transl-sentences
-                        :document/target-glosses :document/transl-glosses
-                        :document/name} new-document))
+         (not (every? #(contains? new-document %) #{:document/target-sentences :document/transl-sentences
+                                                    :document/target-glosses :document/transl-glosses :document/name}))
          (server-error (str "Document is missing keys."))
 
          (not (mc/validate-delta record-valid? delta))
