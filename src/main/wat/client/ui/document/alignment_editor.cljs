@@ -19,41 +19,54 @@
   {:query [:project/id :project/name]
    :ident :project/id})
 
+(defn sentence-list-item
+  [this index v1 v2 selected-index]
+  (mui/list-item {:key            (str index)
+                  :button         true
+                  :disableGutters true
+                  :selected       (= index selected-index)
+                  :onClick        #(m/set-integer! this :ui/selected-index :value index)}
+    (mui/list-item-text {:primary   (str (+ 1 index) ". " (clojure.string/join " " (map first v1)))
+                         :secondary (clojure.string/join " " (map first v2))})))
+
 (defsc AlignmentEditor [this {:document/keys [id name project combined-target-sentences combined-transl-sentences]
-                              :ui/keys       [busy?] :as props}]
-  {:query                  [:document/id
-                            :document/name
-                            :document/combined-target-sentences
-                            :document/combined-transl-sentences
-                            fs/form-config-join :ui/busy?
-                            {:document/project (c/get-query ProjectQuery)}]
-   :ident                  :document/id
-   :pre-merge              (fn [{:keys [data-tree]}]
-                             (merge {:ui/busy? false}
-                                    data-tree))
-   ::forms/validator       doc/validator
-   ::forms/save-mutation   'wat.models.document/save-document
-   ::forms/delete-mutation 'wat.models.document/delete-document
-   ::forms/delete-message  "Document deleted"
-   :form-fields            #{:document/name}}
-  (let [dirty (fs/dirty? props)]
+                              :ui/keys       [busy? selected-index] :as props}]
+  {:query     [:document/id
+               :document/name
+               :document/combined-target-sentences
+               :document/combined-transl-sentences
+               :ui/busy? :ui/selected-index
+               {:document/project (c/get-query ProjectQuery)}]
+   :ident     :document/id
+   :pre-merge (fn [{:keys [data-tree]}]
+                (merge {:ui/busy?          false
+                        :ui/selected-index 0}
+                       data-tree))}
+  (let [selected-target (get combined-target-sentences selected-index)
+        selected-transl (get combined-transl-sentences selected-index)]
     (mui/container {:maxWidth "xl"}
-      (mui/vertical-grid {:spacing 3}
-        (dom/form
-          {:onSubmit (fn [e]
-                       (.preventDefault e)
-                       (uism/trigger! this ::settings :event/save)
-                       (c/transact! this [(fs/clear-complete! {:entity-ident [:document/id id]})]))}
-          (mui/vertical-grid
-            {:spacing 2}
-            (forms/text-input-with-label this :document/name "Name" "Must have 1 to 80 characters"
-              {:fullWidth true
-               :onChange  (fn [e]
-                            (m/set-string!! this :document/name :event e)
-                            (c/transact! this [(fs/mark-complete! {:entity-ident [:document/id id]
-                                                                   :field        :document/name})]))
-               :disabled  busy?})
-            ))))))
+      (mui/box
+        {:style {:maxHeight "200px"
+                 :overflowY "scroll"}}
+        (mui/list {:dense true}
+          (map-indexed
+            (fn [i [s1 s2]]
+              (sentence-list-item this i s1 s2 selected-index))
+            (partition 2 (interleave combined-target-sentences combined-transl-sentences)))))
+      (mui/box
+        {:style {:borderTop "2px solid gray"
+                 :margin "1em 0"
+                 :overflowX "auto"}}
+        (dom/div {:style {:marginTop "5em" :white-space "nowrap"}}
+          (for [word selected-target]
+            (dom/div {:style {:display "inline-block" :margin "0 0.5em"}}
+              (for [piece word]
+                (dom/div piece)))))
+        (dom/div {:style {:marginTop "5em" :marginBottom "5em" :white-space "nowrap"}}
+          (for [word selected-transl]
+            (dom/div {:style {:display "inline-block" :margin "0 0.5em"}}
+              (for [piece word]
+                (dom/div piece)))))))))
 
 (def ui-alignment-editor (c/factory AlignmentEditor))
 
