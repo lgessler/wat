@@ -45,8 +45,12 @@
         transl-sentences (postprocess-sentences transl-sentences)
         target-glosses (postprocess-glosses target-glosses)
         transl-glosses (postprocess-glosses transl-glosses)
-        combined-target-sentences (reduce combine-fn target-sentences target-glosses)
-        combined-transl-sentences (reduce combine-fn transl-sentences transl-glosses)]
+        combined-target-sentences (if (= 0 (count target-glosses))
+                                    (map #(map vector %) target-sentences)
+                                    (reduce combine-fn target-sentences target-glosses))
+        combined-transl-sentences (if (= 0 (count transl-glosses))
+                                    (map #(map vector %) transl-sentences)
+                                    (reduce combine-fn transl-sentences transl-glosses))]
     (-> doc
         (dissoc :document/target-sentences)
         (dissoc :document/transl-sentences)
