@@ -23,7 +23,8 @@
   [:document/id
    :document/name
    :document/combined-target-sentences
-   :document/combined-transl-sentences])
+   :document/combined-transl-sentences
+   :document/alignments])
 
 (defsc Settings [this {:document/keys [id name project] :>/keys [data] :ui/keys [busy?] :as props}]
   {:query                  [:document/id :document/name fs/form-config-join :ui/busy?

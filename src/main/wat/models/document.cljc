@@ -14,7 +14,8 @@
   [:document/name
    :document/project
    :document/combined-target-sentences
-   :document/combined-transl-sentences])
+   :document/combined-transl-sentences
+   :document/alignments])
 
 (defn postprocess-sentences [v]
   (if (= "" (cstr/trim v))
@@ -143,7 +144,8 @@
    (pc/defresolver get-document [{:keys [node]} {:document/keys [id]}]
      {::pc/input     #{:document/id}
       ::pc/output    [:document/id :document/name
-                      :document/combined-target-sentences :document/combined-transl-sentences]
+                      :document/combined-target-sentences :document/combined-transl-sentences
+                      :document/alignments]
       ::pc/transform (ma/readable-required :document/id)}
      (doc/get node id)))
 
@@ -165,7 +167,7 @@
          (server-error (str "Not valid."))
 
          :else
-         (let [combined-new-document (combine-glosses new-document)
+         (let [combined-new-document (assoc (combine-glosses new-document) :document/alignments {})
                {:keys [id success]} (doc/create node combined-new-document)]
            (if-not success
              (server-error (str "Failed to create document, please refresh and try again"))
@@ -200,8 +202,34 @@
            (server-error (str "Failed to delete document " name ". Please refresh and try again"))
            (server-message (str "Document " name " deleted")))))))
 
+#?(:clj
+   (pc/defmutation add-alignment [{:keys [node] :as env} {:keys [b e sentence-index user-email] [_ id] :ident}]
+     {::pc/transform (ma/writeable-required :document/id (comp second :ident))}
+     (let [{:document/keys [name] :as record} (gxe/entity node id)]
+       (cond
+         (nil? record)
+         (server-error (str "Document not found with ID: " id))
+
+         :else
+         (if (doc/add-alignment node id user-email sentence-index {:b b :e e})
+           (server-message (str "Alignment added"))
+           (server-error (str "Failed to add alignment.")))))))
+
+#?(:clj
+   (pc/defmutation delete-alignment [{:keys [node] :as env} {:keys [b e sentence-index user-email] [_ id] :ident}]
+     {::pc/transform (ma/writeable-required :document/id (comp second :ident))}
+     (let [{:document/keys [name] :as record} (gxe/entity node id)]
+       (cond
+         (nil? record)
+         (server-error (str "Document not found with ID: " id))
+
+         :else
+         (if (doc/delete-alignment node id user-email sentence-index {:b b :e e})
+           (server-message (str "Alignment deleted"))
+           (server-error (str "Failed to delete alignment.")))))))
+
 ;; admin --------------------------------------------------------------------------------
 
 #?(:clj
-   (def document-resolvers [get-document create-document save-document delete-document]))
+   (def document-resolvers [get-document create-document save-document delete-document add-alignment delete-alignment]))
 
