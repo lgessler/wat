@@ -1,6 +1,7 @@
 # Introduction
 
-TODO
+This is an app for producing word alignments for aligned texts.
+Docs and an official release aren't done yet--check back later!
 
 # Installation
 *(These instructions are a sketch--more detailed instructions will be given later.)*
