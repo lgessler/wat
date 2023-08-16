@@ -4,8 +4,6 @@ This is an app for producing word alignments for aligned texts.
 Docs and an official release aren't done yet--check back later!
 
 # Installation
-*(These instructions are a sketch--more detailed instructions will be given later.)*
-
 1. Secure a server that will run the app. We will assume you are using an Ubuntu machine.
 2. Download [a JAR from the latest release](https://github.com/lgessler/glam/releases). 
 3. [Configure the JAR as a service](https://dzone.com/articles/run-your-java-application-as-a-service-on-ubuntu).
