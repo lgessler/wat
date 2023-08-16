@@ -16,7 +16,7 @@
 
 = Introduction
 
-WAT (**W**ord **A**lignment **T**ool is an app for annotating word alignments in aligned sentences.
+WAT (**W**ord **A**lignment **T**ool) is an app for annotating word alignments in aligned sentences.
 
 == Installation
 
