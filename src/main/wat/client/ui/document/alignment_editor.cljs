@@ -19,7 +19,8 @@
           (swap! state
                  (fn [s]
                    (-> s
-                       (update-in (into ref [:document/alignments user-email sentence-index]) conj {:b b :e e})))))
+                       (update-in (into ref [:document/alignments user-email sentence-index]) conj {:b b :e e})
+                       (update-in (into ref [:document/alignments user-email sentence-index]) set)))))
   (remote [{:keys [ast]}]
           (assoc ast :key `doc/add-alignment))
   (result-error [{:keys [state ref]}]
