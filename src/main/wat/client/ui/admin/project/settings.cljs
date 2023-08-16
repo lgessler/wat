@@ -58,18 +58,6 @@
 
 ;; Top-level components -------------------------------------------------------------------------------
 ;; ====================================================================================================
-(defn- all-ids
-  "Helper function: we want all items to be expanded by default in the tree-view, and to do this we need to
-  hand the tree-view all the IDs of our nodes."
-  [{txtid :text-layer/id
-    tokid :token-layer/id
-    slid  :span-layer/id :as props}]
-  (cond (some? txtid) (conj (flatten (map all-ids (:text-layer/token-layers props))) (str txtid))
-        (some? tokid) (conj (flatten (map all-ids (:token-layer/span-layers props))) (str tokid))
-        (some? slid) [(str slid)]
-        (nil? props) (log/warn "No layer selected")
-        :else (do (log/error "Unknown layer type!" props) [])))
-
 (defsc ProjectSettings [this {:project/keys [id name users]}]
   {:query         [:project/id
                    :project/name
@@ -78,8 +66,7 @@
    :initial-state {}
    :pre-merge     (fn [{:keys [data-tree current-normalized] :as m}]
                     ;; initial-state doesn't work for some reason
-                    (merge {:ui/active-tab  "access"}
-                           current-normalized
+                    (merge current-normalized
                            data-tree))
    :route-segment (r/last-route-segment :project-settings)
    :will-enter    (fn [app {:keys [id]}]
@@ -96,12 +83,11 @@
       (mui/link {:color "inherit" :href (r/route-for :project-overview) :key "project"} "Project Management")
       (mui/link {:color "textPrimary" :underline "none" :key id} name))
 
-      ;; Tab 1: user permissions
-      (mui/tab-panel {:value "access"}
-        (mui/container {:maxWidth "sm"}
-          (mui/padded-paper
-            (when users
-              (mui/list
-                {:subheading "Project Access Privileges"}
-                (mapv ui-user-permission-list-item
-                      (map #(c/computed % {:project/id id}) users)))))))))
+    ;; Tab 1: user permissions
+    (mui/container {:maxWidth "sm"}
+      (mui/padded-paper
+        (when users
+          (mui/list
+            {:subheading "Project Access Privileges"}
+            (mapv ui-user-permission-list-item
+                  (map #(c/computed % {:project/id id}) users))))))))
