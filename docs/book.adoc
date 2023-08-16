@@ -1,4 +1,4 @@
-= Glam Manual
+= Wat Manual
 :author: Luke Gessler
 :lang: en
 :encoding: UTF-8
@@ -16,188 +16,142 @@
 
 = Introduction
 
-Glam is an app for linguistic annotation.
-While Glam is usable for many different kinds of annotation projects, it was originally developed to serve https://en.wikipedia.org/wiki/Language_documentation[**language documentation**] projects, and in pursuit of that, aims to achieve the following core goals:
+WAT (**W**ord **A**lignment **T**ool is an app for annotating word alignments in aligned sentences.
 
-- **Flexible Data**: you should be able to record however much data and whatever kind of data you desire.
-Annotating anything from good old-fashioned https://en.wikipedia.org/wiki/Interlinear_gloss[interlinear glossed text] to more complicated formats like https://universaldependencies.org/format.html[Universal Dependencies] should be possible and easy.
-- **Seamless Collaboration**: working with others should be frictionless--you should be able to share data without even clicking a button, changes should be viewable by everyone in real time, and everyone should be able to pick the system up quickly.
-- **Durability**: data should never be lost--all past states of the database should be recorded and accessible.
-- **NLP Model Integration**: it should be easy to configure cutting-edge NLP models to provide best possible annotations to be corrected by humans, and have them train incrementally as new gold annotations become available.
-- **Pluggable UIs**: if you want to code new UIs for different kinds of annotation (e.g. entity recognition, syntax, and coreference), you should be able to do so just by writing JavaScript using the Glam API, with no backend changes required.
+== Installation
 
-= Core Concepts
-Glam allows different **users** to collaborate on different **projects**.
-Administrators may grant users read or write privileges on different projects, and projects are otherwise simply collections of **documents**.
-Documents may have different kinds of data, and a project's layer configuration determines what kind of data will be created for that project.
+1. Provision a server that will run the app. We will assume you are using an Ubuntu machine. If you are the only one annotating, you may also run the server locally.
+2. Download https://github.com/lgessler/wat/releases[a JAR from the latest release].
+3. https://dzone.com/articles/run-your-java-application-as-a-service-on-ubuntu[Configure the JAR as a service]. You may also just run the app by typing `java -jar wat-{version-info}.jar` into the command line.
+4. If you are not running WAT locally, set up HTTPS. **If you do not set up HTTPS, your instance will be vulnerable to password-stealing attacks.** Fortunately, this is fairly easy--we recommend running this program on the default port (8080) and using a reverse proxy like Nginx with https://certbot.eff.org/[certbot] to provide HTTPS.
 
+== First Login
+Navigate to the app, e.g. `http://localhost:8080`.
+Register for an account, and note that *the first user registered will have admin privileges*.
+You should do this step before making your instance of WAT visible to the internet.
 
-== Layers
-At the heart of Glam is the concept of a **layer**.
-A layer represents a single kind of data that is to be captured in documents in a project.
-By the addition and combination of layers, different projects are able to record whatever data is most appropriate in their documents.
-Projects may have as many or as few of each layer as is appropriate.
+== Example Project
+Now, click the button in the top left, and hit "Admin Settings".
+Here, you create user accounts and projects.
+A project is a collection of documents that you will be annotating, and by default, non-admin users may not see or edit them.
+Users may be granted access under the Project Management activity.
 
-=== Text
-A text layer holds strings of text that form the foundation of documents.
-Most projects will only have one text layer, though it is possible to create more than one.
-(One such rare occasion might be when the same text has been given in two different languages, and both versions of the text need to be annotated.)
-
-There are no constraints on what texts can contain, except one: many of Glam's core interfaces assume that one line in the text will roughly correspond to something like a sentence.
-Texts should be edited accordingly, and very long lines should be avoided if possible.
-
-NOTE: Some things that you might feel like modeling with multiple text layers might actually be better modeled with other layers.
-For example, you might want to model different speakers in conversational texts with different text layers, but speakers are different and variable across documents, so this is actually better modeled by having a span layer for speakers.
-
-=== Token
-A token layer contains tokens, which are defined as non-overlapping, non-empty, continuous substrings of a text layer which the token layer depends on.
-Tokens provide basic units for further linguistic analysis, and will most commonly capture something like a morpheme or a word.
-It therefore may be desirable to have multiple token layers in some situations.
-
-=== Span
-A span layer contains spans and depends on a token layer.
-Spans are anchored to tokens from the token layer it depends on: each span must be linked to at least one token from that token layer.
-(Associated tokens do not need to be contiguous.)
-Spans may also have a **value**, which is either a plain text value or an entry in a vocabulary (see below).
-
-Many kinds of span layers will have spans which always span exactly one token--these might express common information such as grammatical category, or part of speech.
-Other span layers will have much wider spans, such as a translation span layer, whose spans would cover entire sentences.
-
-=== Relation
-A relation layer depends on a single span layer and holds edges between spans.
-These edges are directed (one span is the source, the other is the target), and must always connect exactly two spans from the span layer.
-The relation also has a value like spans do: either a plain text value, or an item from a vocabulary.
-Many projects will not need relation layers, but they are critical for expressing some kinds of data such as coreference links and syntax trees.
-
-NOTE: We are optimistic that a relation layer will only ever need to involve spans from a single span layer, but if you are in a situation where you feel that you need relations to connect spans from different layers, please https://github.com/lgessler/wat/discussions[discuss your situation] with us.
-
-=== Vocabulary
-A vocabulary is simply a list of items which have at minimum a **form**.
-A vocabulary may also specify additional fields that each item should have, which will be able to hold arbitrary text as information.
-Vocabularies may be **closed** or **open**: if a vocabulary is closed, then only administrators will be able to add more items, and if it is open, then regular users will be able to extend the vocabulary with new items during regular use.
-
-NOTE: For now, additional vocabulary fields will only be able to hold plain strings, but if you would like something beyond that, please https://github.com/lgessler/wat/discussions[describe your needs].
-
-Unlike the other layer types, vocabularies are **global** and are not associated with a project.
-Vocabularies come in two different varieties: if a vocabulary is to be used with a token layer, then it is an **alloformic vocabulary**, and if it is to be used with a span or relation layer, it is a **basic vocabulary**.
-
-.Basic Vocabulary
-In this kind of vocabulary, spans and relations whose values refer to a vocabulary item will have exactly that vocabulary item's form as its value.
-This is suitable for annotations like grammatical categories, POS tags, lemmas, and morphological features.
-
-.Alloformic Vocabulary
-Alloformic vocabularies are used with token layers, and help address the fact that formal units of linguistic analysis such as words of morphemes often do not surface in texts in their citation form: for example, the Turkish plural marker may surface as either _-lar_ or _-ler_ depending on vowel harmony, but we would like them both to correspond to a single vocabulary item for a morphemic analysis.
-An alloformic vocabulary therefore still requires that each item have a canonical **form** which is to serve as a citation form, but it relaxes the requirement that an instantiation of this item have exactly the canonical form.
-
-== Universality
-The five layer types described above are technically and conceptually simple.
-Recall that one of Glam's goals is to allow you to record any kind of data.
-Can we really expect to accommodate any kind of data using just the five layer types?
-
-Cautiously, we expect that the answer is yes.
-Researchers in https://aclanthology.org/2020.acl-main.192/[NLP] and https://corpus-tools.org/salt/[corpus linguistics], among others, have already described very similar data models and expressed faith (supported by experimental successes) in their ability to express almost any linguistic formalism.
-So, if there is some kind of data you wish to annotate, you can expect that Glam's layer system will be able to handle it.
-
-NOTE: If you're struggling to come up with a plan for your data, don't hesitate to make a post on the https://github.com/lgessler/wat/discussions[discussions page] so others can give you advice.
-
-However, what is not necessarily guaranteed is that Glam will provide you with an ergonomic interface for annotating documents in your layer system.
-Glam tries to provide sensible interfaces for the most common kinds of linguistic annotation (such as interlinear glossing), but if your needs are more complex (as they would be with something like constituency treebanking), Glam's interfaces may not be especially ergonomic, and you should consider developing your own UI.
-
-= User Workflows
-
-== Document Annotation
-Glam ships with a number of document-level editing interfaces to facilitate typical kinds of annotation.
-All of these interfaces will automatically update in real time if multiple users are editing the same document.
-
-=== Text
-The text editing interface (at `/document/:id?tab=text`) is used for editing the raw text that will be annotated in the document.
-
-.Raw text entry
-A text box allows for entry, and the default "save" action will save the text as it is entered.
-No tokens will be created--just the text will be saved.
-
-.Text entry with morpheme tokenization
-[#morphent]
-You will often want tokens that represent a morpheme rather than a whole word.
-To conveniently enter data like this, the text editing interface offers a "save with morpheme tokenization" action.
-Text that is entered and saved with this action will create tokens when the text is saved with explicit guidance from you in the form of `-` separators between morphemes.
-For example, consider the following raw text:
+For now, create a project, then use the button in the top left again to go to "Projects".
+Click on your project.
+Click on the "Add Document" button.
+Choose a name for the document, and copy-paste the following text into the fields:
 
 ```
-Ox-en plow-ing the field-s
+# Target Sentences:
+ʕAt’id-a nesi-q kinaw r-oq-ru łina-łay esi-n
+Ražbadin-z idu baru-n xexbi-n yoł-ƛin žawab teƛ-n ečru-ni žek’u-a
+
+# Target Glosses:
+Atid-ERG DEM1.ISG.OBL-POSS.ESS entire IV-happen-PST.PRT what.OBL-CONT.ABL tell-PST.UNW
+Razhbadin-GEN2 home wife-and children-and be-QUOT answer give-PST.UNW old-DEF man-ERG
+
+# Translation Sentences:
+Atid told about everything that had happened to him.
+"His wife and children live at Razhbadin's home", answered the old man.
 ```
 
-When saved with morpheme tokenization mode, two things will happen: first, the `-` separators will be removed from the text's final form; second, tokens will be generated that will have boundaries at `-` separators as well as other heuristic boundaries, such as whitespace characters.
-The text above would therefore look like so, where the numbers under each character indicates the token it belongs to:
+These fields all contain tokens which must be whitespace-tokenized, and the `Sentences` and `Glosses` fields must contain the same number of tokens in each sentence.
+The `Glosses` field allows you to add additional information about the sentence, e.g. with interlinear glosses, and you may add potentially many glosses by separating the gloss sets with two newlines.
+So, this input would also be valid:
 
 ```
-Oxen plowing the fields
-1122 3333444 555 666667
+# Target Sentences:
+ʕAt’id-a nesi-q kinaw r-oq-ru łina-łay esi-n
+Ražbadin-z idu baru-n xexbi-n yoł-ƛin žawab teƛ-n ečru-ni žek’u-a
+
+# Target Glosses:
+Atid-ERG DEM1.ISG.OBL-POSS.ESS entire IV-happen-PST.PRT what.OBL-CONT.ABL tell-PST.UNW
+Razhbadin-GEN2 home wife-and children-and be-QUOT answer give-PST.UNW old-DEF man-ERG
+
+Atid-ERG DEM1.ISG.OBL-POSS.ESS entire IV-happen-PST.PRT what.OBL-CONT.ABL tell-PST.UNW
+Razhbadin-GEN2 home wife-and children-and be-QUOT answer give-PST.UNW old-DEF man-ERG
+
+# Translation Sentences:
+Atid told about everything that had happened to him.
+"His wife and children live at Razhbadin's home", answered the old man.
 ```
 
-If you want to include a literal `-` in your text, simply repeat it:
+Now, hit "Create Document" and open the document, which you should now see in the project's document list.
+In the "Align" tab, you may click on sentences and make alignments between them by clicking and dragging on words.
 
-```
-The ice--cream melt-ed
-=>
-The ice-cream melted
-111 222344444 555566
-```
-
-=== Token
-
-The token editing interface (at `/document/:id?tab=token`) allows you to create and edit tokens.
-A token is visually represented in both this interface and the text interface with a black rounded box around its text.
-
-WARNING: Some of the actions described here are only guaranteed to work in Google Chrome. Avoid using other browsers at this time.
-
-.Bulk token creation
-Currently, only whitespace tokenization is supported for bulk token editing.
-It is recommended that you use text editing with morpheme tokenization if this is not suitable for you.
-In the future, it will be possible to use external tokenizers, such as SpaCy's.
-
-.Token deletion
-Simply click on a token's box to delete it.
-
-.Token creation
-Highlight a totally untokenized span of text, either by clicking and dragging your mouse over it or double clicking on a whole word.
-Creation will only succeed if all characters do not belong to any existing token.
-
-.Token editing
-To shift the boundaries of an existing token, hover over the token with your mouse and use the following keyboard commands:
-
-- `A` / `←`: expand token left
-- `SHIFT+A` / `SHIFT+←`: shrink token left
-- `D` / `→`: expand token right
-- `SHIFT+D` / `SHIFT+→`: shrink token right
-
-=== Interlinear
-The interlinear interface allows <<Project Configuration,properly configured span layers>> to be edited.
-For each token, each token-level span layer will have a single field, and for each sentence, each sentence-level span layer will also have a single field.
-Changes in the spans' values will be propagated to other users as soon as your cursor leaves a field.
-
-= Administrator Workflows
-Administrators are privileged users that can configure all aspects of a Glam instance.
-
-== User Management
-Administrators can create new users and manage existing users (`/admin/user`).
-
-== Project Configuration
-Each project has its own configuration of layers which will determine the structure of documents inside that project.
-Most projects will only need one text layer and one token layer, though one may want to have e.g. tokenizations at both the morpheme and the word level.
-Span layers will vary most across projects, as they contain the span-level linguistic annotations that will constitute the bulk of a document's linguistic annotations.
-
-.Span Configuration for Interlinear Editor
-The interlinear editor needs to know which span layers represent token-level information (e.g. a POS tag or a grammatical category), and which represent sentence-level information (e.g. a translation).
-Once you have configured your project's layers, go to the "Interfaces" tab of the admin's project management activity and configure the span layers you wish to use in the interlinear editor.
-
-.Read and Write Privileges
-By default, non-admin users are not allowed to view or edit any projects.
-To grant them access, navigate to a project in the Project Management admin activity, visit the "Access" tab, and grant each user the appropriate privileges.
+In the "Settings" tab, you may change the document's name or delete the document.
+Additionally, you may export it into a .json representation in order to obtain the alignments.
+Note that *each user has a separate set of alignments for a document*, so when using this file, be sure to use the right user's alignments.
+In the future, we may add features for adjudication, etc.
 
 = Developer's Guide
 
-CAUTION: This section is intended only for people who want to extend Glam. You do not need to read this section in order to use Glam.
+First, take care of dependencies. You will need to:
 
-TODO
+1. https://clojure.org/guides/getting_started[Install Clojure CLI tools]
+2. https://nodejs.org/en/download/[Install NPM and Node]
+3. https://yarnpkg.com/getting-started/install[Install Yarn]
 
+== Running: Command Line
+```bash
+# install dependencies
+$ yarn
+# start compiling CLJS--leave this running in a terminal session...
+$ yarn client
+# and in a separate session, start a server repl--note you'll have to type `(start)`
+$ yarn server
+clojure -A:dev
+Clojure 1.10.1
+user=> (start)
+# navigate to localhost:8085, and see package.json for more
+```
+
+## Running: IntelliJ + Cursive
+On the terminal:
+```bash
+yarn client
+```
+
+Clojure Server Profile:
+
+1. Make a new profile based on "Clojure REPL > Local"
+2. Select "Run with Deps"
+3. Put `dev` in Aliases
+4. Run and write (start)
+5. See `src/dev/user.clj` for development tools.
+
+ClojureScript Client Profile:
+
+1. Make a new profile based on "Clojure REPL > Remote"
+2. Connection type: `nREPL`
+3. Connection details: "Use port from nREPL file"
+4. Project: `wat`
+5. Make sure you're entered `(start)` in the server.
+6. Navigate to `localhost:8085`
+7. Run your client profile and enter:
+```clojure
+(require '[shadow.cljs.devtools.api :as shadow])
+(shadow/repl :main)
+```
+8. Write `(js/console.log "hi")` and ensure that it was printed out to the console in your browser session
+
+## Yarn Commands
+
+*Note*: all `docs` command will require additional dependencies for `asciidoctor`. Use `gem` to get them.
+
+* **`client`**: Start the shadow-cljs ClojureScript compiler, which will compile code to JS and also hot reload any changes.
+* `client/cljs-repl`: Get a client CLJS REPL (note: requires a running browser session).
+* `client/clj-repl`: Get a client CLJ REPL (note: this is only useful if you want to fiddle with shadow-cljs, which is rare).
+* **`server`**: Start a server REPL. (This will not start the server automatically--to do that, you need to type `(start)`.)
+* **`start`**: Convenience function for running `client/main` and `server`.
+* `clean`: Remove all compilation artefacts.
+* `client/release`: Build the single `.js` bundle for a production release.
+* `server/release`: Build the single `.jar` file for a production release.
+* `release`: Convenience function for running `client/release` and `server/release`.
+* `test`: Run all Clojure tests. (Currently, there are no CLJS tests.)
+* `clojure-outdated`: Check Clojure dependencies for oudatedness.
+* `npm-outdated`: Check NPM dependencies for outdatedness.
+* `loc`: Count lines of code (requires `cloc`: `npm install -g cloc`).
+* `docs/html`: Compile `docs/book.adoc` into HTML at `target/book.html`
+* `docs/pdf`: Compile `docs/book.adoc` into a PDF at `target/book.pdf`
+* `docs`: Perform `docs/html` and `docs/pdf`
