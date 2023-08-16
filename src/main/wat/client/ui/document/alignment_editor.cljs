@@ -14,6 +14,26 @@
             [wat.client.ui.material-ui :as mui]
             [wat.models.session :as sn]))
 
+(m/defmutation clear-endpoint [{:keys [target]}]
+  (action [{:keys [state ref]}]
+          (swap! state (fn [s]
+                         (update-in s (conj ref :ui/potential-alignment) dissoc target)))))
+
+(m/defmutation set-endpoint [{:keys [b e]}]
+  (action [{:keys [state ref]}]
+          (swap! state (fn [s]
+                         (if (nil? b)
+                           (assoc-in s (conj ref :ui/potential-alignment :e) e)
+                           (assoc-in s (conj ref :ui/potential-alignment :b) b))))))
+
+(m/defmutation update-line [{:keys [x y]}]
+  (action [{:keys [state ref]}]
+          (swap! state (fn [s]
+                         (let [started-top? (get-in s [(conj ref :ui/potential-alignment :started-top?)])
+                               delta (if started-top? -4 4)]
+                           (-> s
+                               (update-in (conj ref :ui/potential-alignment) assoc :x (+ delta x) :y (+ delta y))))))))
+
 (m/defmutation add-alignment [{:keys [b e sentence-index user-email] id :document/id}]
   (action [{:keys [state ref]}]
           (swap! state
@@ -94,7 +114,8 @@
    :ident          :document/id
    :initLocalState (fn [this _]
                      {:save-top-ref (fn [r] (gobj/set this "top-ref" r))
-                      :save-bot-ref (fn [r] (gobj/set this "bot-ref" r))})
+                      :save-bot-ref (fn [r] (gobj/set this "bot-ref" r))
+                      :save-svg-ref (fn [r] (gobj/set this "svg-ref" r))})
    :pre-merge      (fn [{:keys [data-tree]}]
                      (merge {:ui/first-render?       true
                              :ui/potential-alignment nil
@@ -105,8 +126,10 @@
         selected-transl (get combined-transl-sentences sentence-index)
         save-top-ref (c/get-state this :save-top-ref)
         save-bot-ref (c/get-state this :save-bot-ref)
+        save-svg-ref (c/get-state this :save-svg-ref)
         top-ref (gobj/get this "top-ref")
         bot-ref (gobj/get this "bot-ref")
+        svg-ref (gobj/get this "svg-ref")
         top-width (and top-ref (.-scrollWidth top-ref))
         bot-width (and bot-ref (.-scrollWidth bot-ref))
         max-width (when (and top-width bot-width) (max top-width bot-width))
@@ -122,11 +145,38 @@
                                    (= started-top? top?)
                                    nil
 
-                                   (and top? (not (contains? potential-alignment :b)))
-                                   (m/set-value! this :ui/potential-alignment (assoc potential-alignment :b token-index))
+                                   top?
+                                   (c/transact!
+                                     this
+                                     [(set-endpoint {:b token-index})]
+                                     {:only-refresh [[:document/id id]] :compressible? true})
 
-                                   (and (not top?) (not (contains? potential-alignment :e)))
-                                   (m/set-value! this :ui/potential-alignment (assoc potential-alignment :e token-index))))))
+                                   :else
+                                   (c/transact!
+                                     this
+                                     [(set-endpoint {:e token-index})]
+                                     {:only-refresh [[:document/id id]] :compressible? true})))))
+        on-mouse-leave (fn [top? token-index]
+                        (fn [e]
+                          (.preventDefault e)
+                          (let [started-top? (:started-top? potential-alignment)]
+                            (cond (nil? potential-alignment)
+                                  nil
+
+                                  (= started-top? top?)
+                                  nil
+
+                                  top?
+                                  (c/transact!
+                                    this
+                                    [(clear-endpoint {:target :b})]
+                                    {:only-refresh [[:document/id id]] :compressible? true})
+
+                                  :else
+                                  (c/transact!
+                                    this
+                                    [(clear-endpoint {:target :e})]
+                                    {:only-refresh [[:document/id id]] :compressible? true})))))
         on-mouse-down (fn [top? token-index]
                         (fn [e]
                           (.preventDefault e)
@@ -166,18 +216,33 @@
 
       ;; Alignments
       (mui/box
-        {:style {:borderTop "2px solid gray"
-                 :margin    "1em 0"
-                 :overflowX "auto"}}
+        {:style       {:borderTop "2px solid gray"
+                       :margin    "1em 0"
+                       :overflowX "auto"}
+         :onMouseMove (fn [e]
+                        (.preventDefault e)
+                        (when potential-alignment
+                          (let [rect (.getBoundingClientRect svg-ref)
+                                base-x (.-left rect)
+                                base-y (.-top rect)
+                                page-x (.-clientX e)
+                                page-y (.-clientY e)]
+                            (c/transact!
+                              this
+                              [(update-line {:x (- page-x base-x) :y (- page-y base-y)})]
+                              {:only-refresh [[:document/id id]] :compressible? true}))))}
 
         ;; Target
-        (dom/div {:style {:marginTop "5em" :whiteSpace "nowrap"}
+        (dom/div {:style {:marginTop "5em" :marginBottom "-16px" :whiteSpace "nowrap"}
                   :ref   save-top-ref}
           (map-indexed
             (fn [i word]
-              (dom/div {:style        {:display "inline-block" :margin "0.5em" :cursor "pointer"}
+              (dom/div {:style        {:display         "inline-block" :margin "0.5em" :cursor "pointer"
+                                       :backgroundColor (when (= i (:b potential-alignment)) "#ccc")
+                                       :padding         "4px" :borderRadius "8px"}
                         :key          (str i)
                         :onMouseEnter (on-mouse-enter true i)
+                        :onMouseLeave (on-mouse-leave true i)
                         :onMouseDown  (on-mouse-down true i)}
                 (map-indexed
                   (fn [j piece]
@@ -189,26 +254,15 @@
 
         ;; SVG
         (when max-width
-          (dom/svg {:width       max-width :height 100
-                    :style       {:padding "0em" :margin "0em"}
-                    :onMouseMove (fn [e]
-                                   (.preventDefault e)
-                                   (when potential-alignment
-                                     (let [rect (.getBoundingClientRect (gobj/get (.-children (.-parentNode bot-ref)) 1))
-                                           base-x (.-left rect)
-                                           base-y (.-top rect)
-                                           page-x (.-clientX e)
-                                           page-y (.-clientY e)]
-                                       (m/set-value! this :ui/potential-alignment
-                                                     (-> potential-alignment
-                                                         (assoc :x (- page-x base-x))
-                                                         (assoc :y (- page-y base-y)))))))}
+          (dom/svg {:width max-width :height 120
+                    :style {:padding "0em" :margin "0em"}
+                    :ref   save-svg-ref}
             (when-let [{:keys [x y started-top? b e]} potential-alignment]
               (let [x1 (if started-top? (get top-tok-pos b) (get bot-tok-pos e))
-                    y1 (if started-top? 0 100)]
+                    y1 (if started-top? 5 115)]
                 (when (and x y)
                   (dom/line {:x1   x1 :y1 y1 :x2 x :y2 y
-                             :fill "black" :strokeWidth "2" :strokeLinecap "butt" :stroke "black"}))))
+                             :fill "black" :strokeWidth "3" :strokeLinecap "round" :stroke "black"}))))
             (for [{:keys [b e]} specific-alignments]
               (let [x1 (get top-tok-pos b)
                     x2 (get bot-tok-pos e)
@@ -218,23 +272,26 @@
                                                                   :b              b
                                                                   :e              e})])]
                 (c/fragment
-                  (dom/line {:x1      x1 :x2 x2 :y1 0 :y2 100
-                             :fill    "black" :strokeWidth "8" :strokeOpacity 0.5 :strokeLinecap "butt" :stroke "white"
+                  (dom/line {:x1      x1 :x2 x2 :y1 5 :y2 115
+                             :fill    "black" :strokeWidth "8" :strokeOpacity 0.5 :strokeLinecap "round" :stroke "white"
                              :style   {:cursor "pointer"}
                              :onClick delete})
-                  (dom/line {:x1      x1 :x2 x2 :y1 0 :y2 100
-                             :fill    "black" :strokeWidth "2" :strokeLinecap "butt" :stroke "black"
+                  (dom/line {:x1      x1 :x2 x2 :y1 5 :y2 115
+                             :fill    "black" :strokeWidth "3" :strokeLinecap "round" :stroke "black"
                              :style   {:cursor "pointer"}
                              :onClick delete}))))))
 
         ;; Translation
-        (dom/div {:style {:marginTop "0em" :marginBottom "5em" :whiteSpace "nowrap"}
+        (dom/div {:style {:marginTop "-16px" :marginBottom "5em" :whiteSpace "nowrap"}
                   :ref   save-bot-ref}
           (map-indexed
             (fn [i word]
-              (dom/div {:style        {:display "inline-block" :margin "0.5em" :cursor "pointer"}
+              (dom/div {:style        {:display         "inline-block" :margin "0.5em" :cursor "pointer"
+                                       :backgroundColor (when (= i (:e potential-alignment)) "#ccc")
+                                       :padding         "4px" :borderRadius "8px"}
                         :key          (str i)
                         :onMouseEnter (on-mouse-enter false i)
+                        :onMouseLeave (on-mouse-leave false i)
                         :onMouseDown  (on-mouse-down false i)}
                 (map-indexed
                   (fn [j piece]
