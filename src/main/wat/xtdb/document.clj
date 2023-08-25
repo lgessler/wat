@@ -39,19 +39,13 @@
   [(gxe/delete* eid)])
 
 (gxe/deftx add-alignment [node eid user-email sentence-index amap]
-  (let [{:document/keys [alignments] :as d} (gxe/entity node eid)
-        new-doc (if (and (contains? alignments user-email)
-                         (contains? (get alignments user-email) sentence-index))
-                  (update-in d [:document/alignments user-email sentence-index] conj amap)
-                  (assoc-in d [:document/alignments user-email sentence-index] #{amap}))
-        new-doc (update-in new-doc [:document/alignments user-email sentence-index] set)]
+  (let [new-doc (-> (gxe/entity node eid)
+                    (update-in [:document/alignments user-email sentence-index] set)
+                    (update-in [:document/alignments user-email sentence-index] conj amap))]
     [(gxe/put* new-doc)]))
 
 (gxe/deftx delete-alignment [node eid user-email sentence-index amap]
-  (let [{:document/keys [alignments] :as d} (gxe/entity node eid)
-        new-doc (if (and (contains? alignments user-email)
-                         (contains? (get alignments user-email) sentence-index))
-                  (update-in d [:document/alignments user-email sentence-index] disj amap)
-                  (assoc-in d [:document/alignments user-email sentence-index] #{}))
-        new-doc (update-in new-doc [:document/alignments user-email sentence-index] set)]
+  (let [new-doc (-> (gxe/entity node eid)
+                    (update-in [:document/alignments user-email sentence-index] set)
+                    (update-in [:document/alignments user-email sentence-index] disj amap))]
     [(gxe/put* new-doc)]))
